@@ -1,0 +1,34 @@
+Free Electrons video processing scripts
+---------------------------------------
+
+Scripts released under the GNU General Public License V2 license
+See the LICENSE file for details
+
+This script can be used to encode AVCHD files to the free VP8 codec.
+It also adds an introductory sequence showing the video title and 
+other useful information.
+
+It is not meant to be very generic. Instead, it can be used as
+a starting base (that works!) which you would customize according to
+your exact needs.
+
+How to use:
+
+- Take all your video files (should be named *.mts), and rename them
+  so all the parts of the same video are named in a consistent way:
+  firstvideo1.mts, firstvideo2.mts, firstvideo3.mts...
+  secondvideo1.mts, secondvideo2.mts, secondvideo3.mts...
+
+- Create a conf-list.txt file describing the various talks to process
+  (see the conf-list.txt example file)
+  Make sure that the 'Filename' field matches the filenames given above. 
+
+- Customize the .svg template for the video cover. See the example
+  given in this directory. Make sure that you keep the fields that 
+  the gen-videos-vp8 script subsitutes with values from the conf-list.txt
+  file
+
+- Run the gen-videos-vp8 script
+
+- Run the gen-html script to generate a web page with links to the
+  videos. 

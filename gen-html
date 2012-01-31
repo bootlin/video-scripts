@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# License: GNU General Public License v2
+# See the COPYING file for details
+
+gen_html () {
+    VIDEOPATH=/media/40999800-8cfe-4211-8192-8d13686927c3/elce2011/webm
+    LDVIDEOWIDTH=450
+    LDVIDEOHEIGHT=800
+    VIDEOFILE=$PREFIX-$FILENAME.webm
+    LDVIDEOFILE=$PREFIX-$FILENAME-${LDVIDEOWIDTH}p.webm
+    VIDEOCAP=$CAPS/$PREFIX-$FILENAME.jpg
+    VIDEOCAPTHUMB=$CAPS/$PREFIX-$FILENAME-thumb.jpg
+    VIDEO=$VIDEOPATH/$VIDEOFILE
+    LDVIDEO=$VIDEOPATH/$LDVIDEOFILE
+    DURATION=`mkvinfo $VIDEO | grep Duration | cut -f4 -d' ' | cut -f1 -ds`
+    MINUTES=`echo $DURATION/60 | bc`
+    SIZE=`ls -lh $VIDEO | awk '{ print $5 }'`
+    LDSIZE=`ls -lh $LDVIDEO | awk '{ print $5 }'`
+
+    # Capturing a frame at instant 300 (5 minutes)
+    # Usually, the speaker is ready and still talking
+
+    ffmpeg -vframes 1 -ss 300 -i $VIDEO output%d.jpg
+    if ! -f output1.jpg ; then
+	ffmpeg -vframes 1 -ss 100 -i $VIDEO output%d.jpg ;
+    fi
+    mv output1.jpg $VIDEOCAP 
+    convert $VIDEOCAP -resize 200 $VIDEOCAPTHUMB 
+
+    # Generating html
+
+    missing_lines=0
+
+    echo -n "<b>$SPEAKER</b>"
+    echo -n "<a href=\"$WWWDIR/$VIDEOCAP\"><img class=\"alignright\" src=\"$WWWDIR/$VIDEOCAPTHUMB\" alt=\"Video capture\"/></a>"
+
+    if [ "$COMPANY" != "" ]
+    then
+	echo -n "<br/>$COMPANY"
+    else
+	missing_lines=`expr $missing_lines + 1` 
+    fi
+
+    if [ "$LINK" != "" ]
+    then
+        echo -n "<br/><a href=\"$LINK\">$TITLE</a>"
+    else
+        echo -n "<br/>$TITLE"
+	missing_lines=`expr $missing_lines + 1` 
+    fi
+
+    if [ "$SLIDES" != "" ]
+    then
+        echo -n "<br/><a href=\"$SLIDES\">Slides</a>"
+    else
+	missing_lines=`expr $missing_lines + 1` 
+    fi
+
+    echo -n "<br/>Video ($MINUTES minutes):<br/>"
+    echo -n "<a href=\"$WWWDIR/$VIDEOFILE\">full HD</a> ($SIZE), "
+    echo "<a href=\"$WWWDIR/$LDVIDEOFILE\">${LDVIDEOWIDTH}x${LDVIDEOHEIGHT}</a> ($LDSIZE)<br/><br/>"
+
+    for i in `seq 1 1 $missing_lines`
+    do
+	echo -n "<br/>"
+    done
+}
+
+CAPS=vidcaps
+mkdir -p $CAPS
+
+cat conf-list.txt | grep -v "^#" | while read talk ; do
+    EVENT=$(echo $talk | cut -f1 -d'|')
+    SPEAKER=$(echo $talk | cut -f2 -d'|')
+    COMPANY=$(echo $talk | cut -f3 -d'|')
+    TITLE=$(echo $talk | cut -f4 -d'|')
+    FILENAME=$(echo $talk | cut -f5 -d'|')
+    LINK=$(echo $talk | cut -f6 -d'|')
+    SLIDES=$(echo $talk | cut -f7 -d'|')
+
+    if [ "$EVENT" == "elce-2011" ] ; then
+	PREFIX=elce-2011
+	WWWDIR=pub/video/2011/elce
+    else
+        echo "Unknown event $EVENT, abording"
+	exit 1
+    fi
+
+    gen_html < /dev/null
+done

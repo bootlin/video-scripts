@@ -1,0 +1,163 @@
+#!/bin/sh
+#
+# Script to encode multiple AVCHD videos to VP8/Vorbis in a WebM container
+#
+# Required Ubuntu packages:
+# ffmpeg sox vorbis-tools inkscape mkvtoolnix
+#
+# License: GNU General Public License v2
+# See the COPYING file for details
+
+encode_vp8 () {
+
+    echo "Processing $FILENAME..."
+    
+    OUTPUT=$OUTDIR/${PREFIX}-${FILENAME}-${HEIGHT}p.webm
+    OUTPUT_HD=$OUTDIR/${PREFIX}-${FILENAME}.webm
+
+    if [ -f "$OUTPUT" ]
+    then
+	echo "Skipping $OUTPUT... already generated"
+	continue
+    fi
+
+    dir=tmp-${FILENAME}
+    mkdir -p $dir
+
+    # Extract audio
+
+    MAIN_AUDIO=$dir/main.wav
+    cat ${FILENAME}*.mts | ffmpeg -threads $CPUS -y -i - -vn -acodec pcm_s16le -ac 2 -ar $AUDIO_RATE $MAIN_AUDIO
+
+    # Encode video
+
+    VIDEO_HD=$dir/video-hd.webm
+    VIDEO=$dir/video.webm
+    OPTS="-threads $CPUS -y -i - -f webm -vcodec libvpx -deinterlace -r 25"
+    cat ${FILENAME}*.mts | ffmpeg $OPTS -s ${WIDTH_HD}x${HEIGHT_HD} -an $VIDEO_HD
+    cat ${FILENAME}*.mts | ffmpeg $OPTS -s ${WIDTH}x${HEIGHT} -an $VIDEO
+
+    # Generate intro picture
+
+    COVER_SVG=$dir/cover.svg
+    COVER_HD=$dir/cover-hd.png
+    COVER=$dir/cover.png
+
+    cat $COVER_TEMPLATE | sed "s|TITLE|$TITLE|" | sed "s|SPEAKER|$SPEAKER|" | sed "s|COMPANY|$COMPANY|" > $COVER_SVG
+    if [ $? -ne 0 ]
+    then
+    	exit 1
+    fi
+
+    TITLE_LENGTH=$(echo $TITLE | wc -c)
+    if [ $TITLE_LENGTH -gt 100 ] ; then
+       sed -i "s/font-size:36px/font-size:28px/" $COVER_SVG
+    elif [ $TITLE_LENGTH -gt 80 ] ; then
+       sed -i "s/font-size:36px/font-size:32px/" $COVER_SVG
+    fi
+
+    inkscape -h $HEIGHT_HD -w $WIDTH_HD -e $COVER_HD $COVER_SVG 2> /dev/null
+    if [ $? -ne 0 ]
+    then
+    	exit 1
+    fi
+
+    inkscape -h $HEIGHT -w $WIDTH -e $COVER $COVER_SVG 2> /dev/null
+    if [ $? -ne 0 ]
+    then
+    	exit 1
+    fi
+
+    # Generate intro video
+
+    INTRO_HD=$dir/intro-hd.webm
+    INTRO=$dir/intro.webm
+    ffmpeg -loop_input -y -f image2 -i $COVER_HD  -r 25 -t $INTRO_DURATION -f webm -vcodec libvpx $INTRO_HD
+    ffmpeg -loop_input -y -f image2 -i $COVER  -r 25 -t $INTRO_DURATION -f webm -vcodec libvpx $INTRO
+
+    # Add 5 seconds of silence (duration of the intro) and encode it to vorbis
+
+    AUDIO=$dir/audio.wav
+    OGG=$dir/audio.ogg
+    SILENCE=$dir/silence.wav
+
+    ffmpeg -acodec pcm_s16le -f s16le -i /dev/zero -ar $AUDIO_RATE -ac 2 -t $INTRO_DURATION $SILENCE
+    sox $SILENCE $MAIN_AUDIO $AUDIO 
+    oggenc -q 5 -o $OGG $AUDIO 
+
+    # Merge all the components (no reencoding needed)
+
+    TMP=$dir/output.webm
+    mkvmerge --title "$SPEAKER - $TITLE" -o $TMP $INTRO_HD +${VIDEO_HD} $OGG
+    mv -f $TMP $OUTPUT_HD
+    mkvmerge --title "$SPEAKER - $TITLE" -o $TMP $INTRO +${VIDEO} $OGG
+    mv -f $TMP $OUTPUT
+
+    # Clean
+    rm -rf $dir
+}
+
+gen_cover () {
+    # Generate intro picture
+
+    COVER_SVG=$OUTDIR/cover.svg
+    COVER_HD=$OUTDIR/cover-hd-$FILENAME.png
+    COVER=$OUTDIR/cover-$FILENAME.png
+
+    cat $COVER_TEMPLATE | sed "s|TITLE|$TITLE|" | sed "s|SPEAKER|$SPEAKER|" | sed "s|COMPANY|$COMPANY|" > $COVER_SVG
+    if [ $? -ne 0 ]
+    then
+    	exit 1
+    fi
+
+    TITLE_LENGTH=$(echo $TITLE | wc -c)
+    if [ $TITLE_LENGTH -gt 100 ] ; then
+       sed -i "s/font-size:36px/font-size:28px/" $COVER_SVG
+    elif [ $TITLE_LENGTH -gt 80 ] ; then
+       sed -i "s/font-size:36px/font-size:32px/" $COVER_SVG
+    fi
+
+    inkscape -h $HEIGHT_HD -w $WIDTH_HD -e $COVER_HD $COVER_SVG 2> /dev/null
+    if [ $? -ne 0 ]
+    then
+    	exit 1
+    fi
+
+#    inkscape -h $HEIGHT -w $WIDTH -e $COVER $COVER_SVG 2> /dev/null
+#    if [ $? -ne 0 ]
+#    then
+#    	exit 1
+#    fi
+}
+
+# Inits
+
+WIDTH=800
+HEIGHT=450
+WIDTH_HD=1920
+HEIGHT_HD=1080
+CPUS=2
+INTRO_DURATION=5
+AUDIO_RATE=48000
+OUTDIR=webm
+
+mkdir -p $OUTDIR
+
+cat conf-list.txt | grep -v "^#" | while read talk ; do
+    EVENT=$(echo $talk | cut -f1 -d'|')
+    SPEAKER=$(echo $talk | cut -f2 -d'|')
+    COMPANY=$(echo $talk | cut -f3 -d'|')
+    TITLE=$(echo $talk | cut -f4 -d'|')
+    FILENAME=$(echo $talk | cut -f5 -d'|')
+
+    if [ "$EVENT" = "elce-2011" ] ; then
+	COVER_TEMPLATE=video-cover-elce.svg
+	PREFIX=elce-2011
+    else
+        echo "Unknown event $EVENT, abording"
+	exit 1
+    fi
+
+#    gen_cover < /dev/null
+    encode_vp8 < /dev/null
+done
