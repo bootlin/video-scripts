@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# oggvideotools issues:
+# had to: sudo cp ./build/src/liboggvideotools.so /usr/local/lib/
+ 
+# Inits
+
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+mkdir -p bodies
+mkdir -p covers
+
+WIDTH=1280
+HEIGHT=720
+
+cat conf-list.txt | grep -v "^#" | while read talk ; do
+    EVENT=$(echo $talk | cut -f1 -d'|')
+    SPEAKER=$(echo $talk | cut -f2 -d'|')
+    TITLE=$(echo $talk | cut -f5 -d'|')
+    FILENAME=$(echo $talk | cut -f6 -d'|')
+    COMPANY=$(echo $talk | cut -f4 -d'|')
+
+    echo $FILENAME
+
+    if [ $EVENT == "elc-2010" ] ; then
+        PREFIX="elc2010"
+	COVER_TEMPLATE=video-cover-elc.svg
+    else
+        echo "Unknown event type"
+        exit 1
+    fi
+
+    # Encode main video
+
+    VIDEO_FULL=${PREFIX}-${FILENAME}.ogv
+    VIDEO_BODY=bodies/$VIDEO_FULL
+
+    if [ ! -f $VIDEO_BODY ] ; then
+       # Gegenerate the file only if it doesn't exist yet. It could have
+       # been produced manually or in an earlier step
+
+       cat ${FILENAME}*.mts | ffmpeg2theora -a 5 -v 9 -x $WIDTH -y $HEIGHT --inputfps 25 -F 25 -o $VIDEO_BODY -
+       if [ $? -ne 0 ] ; then
+       	   exit 1 ;
+       fi
+    fi
+
+    # Generate cover picture
+
+    COVER_SVG=covers/$FILENAME-cover.svg
+    COVER=covers/$FILENAME-cover.png
+
+    cat $COVER_TEMPLATE | sed "s|TITLE|$TITLE|" | sed "s|SPEAKER|$SPEAKER|" | sed "s|COMPANY|$COMPANY|" > $COVER_SVG
+    if [ $? -ne 0 ] ; then
+	exit 1 ;
+    fi
+
+    TITLE_LENGTH=$(echo $TITLE | wc -c)
+    if [ $TITLE_LENGTH -gt 80 ] ; then
+	sed -i "s/font-size:36px/font-size:28px/" $COVER_SVG
+    fi
+
+    inkscape -h $HEIGHT -w $WIDTH -e $COVER $COVER_SVG 2> /dev/null
+    if [ $? -ne 0 ] ; then
+	exit 1 ;
+    fi
+
+    # Add an intro to the video
+    ./theora-intro -v --organization "Free Electrons" --title "$SPEAKER ($COMPANY) - $TITLE" --date "April 2010" --location "San Francisco, USA" --copyright "Free Electrons" --license "Creative Commons BY-SA 3.0" --contact "feedback@free-electrons.com"  $VIDEO_BODY $COVER $VIDEO_FULL
+
+done

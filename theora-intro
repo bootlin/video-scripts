@@ -1,0 +1,289 @@
+#!/usr/bin/env python
+#
+# theora-intro: adds an introduction to an existing Ogg/Theora video
+#
+# Usage: theora-intro <options> <video> <image> <output-video>
+#
+# Version 0.9
+# Copyright (C) 2009 Free Electrons
+# Author: Michael Opdenacker <michael@free-electrons.com>
+#
+# Huge thanks to Yoern Seger <yorn@gmx.net> for his useful tools
+# and for investigating the issues I faced.
+#
+# Many thanks to ogg.k.ogg.k@googlemail.com for his great help
+# on the theora@xiph.org mailing list.
+#
+# gen_silence function:
+# Copyright (C) 2009 Lino Mastrodomenico <l.mastrodomenico@gmail.com> 
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at your
+# option) any later version.
+# 
+# THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+# NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+# NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+# THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# 
+# You should have received a copy of the  GNU General Public License along
+# with this program; if not, write  to the Free Software Foundation, Inc.,
+# 675 Mass Ave, Cambridge, MA 02139, USA.
+
+import sys, os, optparse, commands, re, tempfile, struct, shutil
+
+global tmpdir, tmp_image_pattern
+
+import struct, sys
+
+def gen_silence(freq, duration, output_file):
+
+    # Generates a silent WAV file
+    # Usage: gen_silence(frequency_in_Hz, duration_in_seconds, output.wav)
+ 
+    size = int(round(duration * freq)) * 4
+    f = open(output_file, 'wb')
+    header = ('RIFF', size + 36, 'WAVEfmt \x10\0\0\0\1\0\2\0',
+          freq, freq * 4, '\4\0\x10\0data', size)
+    f.write(struct.pack('< 4s I 16s 2I 8s I', *header))
+    f.write(struct.pack('B', 0) * size)
+    f.close()
+
+##########################################################
+# Common routines
+##########################################################
+
+def which(program):
+
+    def is_exe(fpath):
+        return os.path.exists(fpath) and os.access(fpath, os.X_OK)
+
+    for path in os.environ["PATH"].split(os.pathsep):
+        exe_file = os.path.join(path, program)
+        if is_exe(exe_file):
+           return exe_file
+
+    return None
+
+def check_command(command, tip):
+ 
+    if which(command) == None:
+       print 'ERROR: missing', command, 'executable'
+       print tip
+       sys.exit()
+
+def run_command(command):
+
+    info('Running command:' + command)
+
+    status, output = commands.getstatusoutput(command)
+
+    if status != 0:
+       print "ERROR: failed to execute the below command:"
+       print command
+       print output
+       shutil.rmtree(tmpdir)
+       sys.exit()
+    
+    return output
+
+def video_info(info, key, mandatory=True):
+
+    for line in info.splitlines():
+	line = line.strip()
+	pos = line.find(key)
+	
+	if pos != -1:
+           value = line[pos+len(key):]
+	   return value.strip()  
+
+    if mandatory:
+       print 'ERROR: could not find ', key, ' information about the video file.'
+       print 'Not a valid Ogg/Theora file?'
+       sys.exit()
+    else:
+       return None
+
+def video_width(info):
+    return video_info(info, 'Width:')
+
+def video_height(info):
+    return video_info(info, 'Height:')
+
+def audio_sample_freq(info):
+    return video_info(info, 'Rate:')
+
+def audio_bitrate(info):
+    value=video_info(info, 'Nominal bitrate:')
+    rate=value.split()[0]
+    return str(int(float(rate)))
+
+def video_fps(info):
+    value = video_info(info, 'Framerate')
+    match = re.search('.*[(]([0-9]*).00 fps[)]', value)
+    return match.group(1)
+
+def imgfile(index):
+    # Generates the name of an image file used in the intro
+    return tmp_image_pattern % index
+
+def info(msg):
+    if options.verbose:
+	print 'INFO:', msg
+
+##########################################################
+# Main program
+##########################################################
+
+# Define and check command line arguments
+
+usage = 'usage: %prog [options] input-video title-image output-video'
+description = 'Adds an introduction to a source Ogg/Theora video, using the given title image'
+
+parser = optparse.OptionParser(usage=usage, version='theora-intro 0.9', description=description)
+
+parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
+                     help='Verbose mode')
+
+metadata = ['artist', 'title', 'date', 'location', 'organization', 'copyright', 'license', 'contact']
+
+for field in metadata:
+    parser.add_option('--'+field, action='store', dest=field, help='Overrides the '+field.upper()+' Ogg metadata')
+
+(options, args) = parser.parse_args()
+
+# Argument and option checks
+
+if len(args) != 3:
+	parser.error('incorrect number of arguments')
+
+input_video = args[0]
+title_image = args[1]
+output_video = args[2]
+
+if os.path.lexists(output_video):
+   os.remove(output_video)
+
+for file in [input_video, title_image]:
+    if not os.path.lexists(file):
+       print 'ERROR: the', file, 'file does not exist'
+       sys.exit()
+
+# Environment checks
+
+check_command('ogginfo', 'Try to install the vorbis-tools package')
+check_command('convert', 'Try to install the imagemagick package')
+check_command('ffmpeg2theora', 'Try to install the ffmpeg2theora package')
+check_command('oggz-merge', 'Try to install the oggz-tools package')
+check_command('oggTranscode', 'Please install the Ogg Video Tools from http://dev.streamnik.de/oggvideotools.html')
+
+# Inits
+
+tmpdir = tempfile.mkdtemp('','tmp.',os.path.dirname(output_video))
+tmp_image_pattern = tmpdir + '/img-%03d.png'
+tmp_intro_video = tmpdir + '/intro-noaudio.ogv'
+silence_wav = tmpdir + '/silence.wav'
+silence_ogg = tmpdir + '/silence.ogg'
+intro_video = tmpdir + '/intro.ogv'
+intro_video_resampled = tmpdir + '/intro-resampled.ogv'
+video_resampled = tmpdir + '/video-resampled.ogv'
+
+info('Creating temporary files in ' + tmpdir)
+
+# Get audio / video information
+
+ogginfo = run_command('ogginfo ' + input_video)
+
+width = video_width(ogginfo)
+height = video_height(ogginfo)
+audio_sample_freq = audio_sample_freq(ogginfo)
+audio_bitrate = audio_bitrate(ogginfo)
+fps = video_fps(ogginfo)
+
+info('VIDEO DETAILS')
+info('Resolution: ' + width + 'x' + height)
+info('Frames per second: ' + fps)
+info('Audio sample rate: '  + audio_sample_freq)
+info('Audio nominal bitrate: '  + audio_bitrate)
+
+# Metadata inits
+
+ff2t_opts = ''
+
+for field in metadata:
+	
+    opt_value = getattr(options, field)
+
+    if opt_value is None:
+       value = video_info(ogginfo, field.upper() + '=', False)
+       if value != None:
+          ff2t_opts += ' --' + field + ' "' + value + ' "'
+    else:
+       ff2t_opts += ' --' + field + ' "' + opt_value + ' "'
+
+# Generate introduction images ############################################
+
+count = 0
+info('Generating intro frame images')
+
+# Generate 50 fade-in frames 
+
+for i in range(100, 0, -2):
+	count += 1
+	info('Generating intro frame image ' + imgfile(count))
+	run_command('convert -fill black -colorize ' + str(i) + '% ' + title_image + ' ' + imgfile(count))
+
+# Generate 50 identical frames
+
+count += 1
+ref_image = imgfile(count)
+
+shutil.copy(title_image, ref_image)
+
+for i in range(2, 50):
+	count += 1
+	info('Generating intro frame image ' + imgfile(count))
+	os.link(ref_image, imgfile(count))
+
+# Generate 50 fade-out frames 
+
+for i in range(100, 0, -2):
+	count += 1
+	info('Generating intro frame image ' + imgfile(count))
+	os.link(imgfile(i / 2), imgfile(count))
+
+
+# Generate the intro video
+
+run_command('ffmpeg2theora-0.24.linux32.bin' + ff2t_opts + ' -v 10 -x ' + width + ' -y ' + height + ' -F ' + fps + ' ' + tmp_image_pattern + ' -o ' + tmp_intro_video)
+
+# Generate the audio track for the intro video
+
+intro_duration = 150.0 / int(fps)
+gen_silence(int(audio_sample_freq), intro_duration, silence_wav) 
+run_command('oggenc --managed --bitrate ' + audio_bitrate + ' -o ' + silence_ogg + ' ' + silence_wav)
+
+# Merge the video and audio for the intro
+run_command('oggz-merge -o ' + intro_video + ' ' + silence_ogg + ' ' + tmp_intro_video)
+
+# Postprocess the audio on both streams (required before oggCat)
+run_command('oggTranscode -D' + audio_sample_freq + ' ' + intro_video + ' ' + intro_video_resampled)
+run_command('oggTranscode -D' + audio_sample_freq + ' ' + input_video + ' ' + video_resampled)
+ 
+# Merging the intro and the main video
+run_command('oggCat ' + output_video + ' ' + intro_video_resampled + ' ' + video_resampled) 
+
+# Remove the skeleton from the audio file
+#run_command('oggzrip -c theora -c vorbis -o ' + silence_ogg_without_skeleton + ' ' + silence_ogg)
+
+
+# Remove the temporary directory
+
+shutil.rmtree(tmpdir)
