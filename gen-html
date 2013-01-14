@@ -13,7 +13,7 @@ gen_html () {
     VIDEOCAPTHUMB=$CAPS/$PREFIX-$FILENAME-thumb.jpg
     VIDEO=$VIDEOPATH/$VIDEOFILE
     LDVIDEO=$VIDEOPATH/$LDVIDEOFILE
-    DURATION=`mkvinfo $VIDEO | grep Duration | cut -f4 -d' ' | cut -f1 -ds`
+    DURATION=`LANG=C mkvinfo $VIDEO | grep Duration | cut -f4 -d' ' | cut -f1 -ds`
     MINUTES=`echo $DURATION/60 | bc`
     SIZE=`ls -lh $VIDEO | awk '{ print $5 }'`
     LDSIZE=`ls -lh $LDVIDEO | awk '{ print $5 }'`
