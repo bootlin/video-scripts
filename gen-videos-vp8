@@ -3,7 +3,10 @@
 # Script to encode multiple AVCHD videos to VP8/Vorbis in a WebM container
 #
 # Required Ubuntu packages:
-# ffmpeg sox vorbis-tools inkscape mkvtoolnix
+# libav-tools inkscape mkvtoolnix
+#
+# The tested libav version is Git version
+# 1f4ea4e068f1131bff6c246308f52acbf1347cc2.
 #
 # License: GNU General Public License v2
 # See the COPYING file for details
@@ -11,7 +14,7 @@
 encode_vp8 () {
 
     echo "Processing $FILENAME..."
-    
+
     OUTPUT=$OUTDIR/${PREFIX}-${FILENAME}-${HEIGHT}p.webm
     OUTPUT_HD=$OUTDIR/${PREFIX}-${FILENAME}.webm
 
@@ -24,20 +27,23 @@ encode_vp8 () {
     dir=tmp-${FILENAME}
     mkdir -p $dir
 
-    # Extract audio
-
-    MAIN_AUDIO=$dir/main.wav
-    cat ${FILENAME}*.mts | ffmpeg -threads $CPUS -y -i - -vn -acodec pcm_s16le -ac 2 -ar $AUDIO_RATE $MAIN_AUDIO
-
     # Encode video
 
     VIDEO_HD=$dir/video-hd.webm
     VIDEO=$dir/video.webm
-    OPTS="-threads $CPUS -y -i - -f webm -vcodec libvpx -deinterlace -r 25"
-    cat ${FILENAME}*.mts | ffmpeg $OPTS -s ${WIDTH_HD}x${HEIGHT_HD} -an $VIDEO_HD
-    cat ${FILENAME}*.mts | ffmpeg $OPTS -s ${WIDTH}x${HEIGHT} -an $VIDEO
+    AVCONV_VIDEO_OPTS="-threads $CPUS -y -i - -f webm -vcodec libvpx -vf yadif -r 25 -strict experimental"
+
+    echo "Encode high-res video"
+    cat ${FILENAME}*.mts | avconv ${AVCONV_VIDEO_OPTS} -s ${WIDTH_HD}x${HEIGHT_HD} -acodec vorbis -b 800k $VIDEO_HD
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+
+    echo "Encode low-res video"
+    cat ${FILENAME}*.mts | avconv ${AVCONV_VIDEO_OPTS} -s ${WIDTH}x${HEIGHT} -acodec vorbis -b 400k $VIDEO
+    if [ $? -ne 0 ] ; then exit 1 ; fi
 
     # Generate intro picture
+
+    echo "Generate introduction picture"
 
     COVER_SVG=$dir/cover.svg
     COVER_HD=$dir/cover-hd.png
@@ -57,40 +63,39 @@ encode_vp8 () {
     fi
 
     inkscape -h $HEIGHT_HD -w $WIDTH_HD -e $COVER_HD $COVER_SVG 2> /dev/null
-    if [ $? -ne 0 ]
-    then
-    	exit 1
-    fi
+    if [ $? -ne 0 ] ; then exit 1 ; fi
 
     inkscape -h $HEIGHT -w $WIDTH -e $COVER $COVER_SVG 2> /dev/null
-    if [ $? -ne 0 ]
-    then
-    	exit 1
-    fi
+    if [ $? -ne 0 ] ; then exit 1 ; fi
 
     # Generate intro video
+    echo "Generate intro video"
 
     INTRO_HD=$dir/intro-hd.webm
     INTRO=$dir/intro.webm
-    ffmpeg -loop_input -y -f image2 -i $COVER_HD  -r 25 -t $INTRO_DURATION -f webm -vcodec libvpx $INTRO_HD
-    ffmpeg -loop_input -y -f image2 -i $COVER  -r 25 -t $INTRO_DURATION -f webm -vcodec libvpx $INTRO
+    avconv -y \
+	-f image2 -loop 1 -i $COVER_HD -r 25 -f webm -vcodec libvpx -t $INTRO_DURATION \
+	-ar 48000 -acodec pcm_s16le -f s16le -ac 2 -i /dev/zero -strict experimental -acodec vorbis -t $INTRO_DURATION \
+	-map 0:0 -map 1:0 $INTRO_HD
+    if [ $? -ne 0 ] ; then exit 1 ; fi
 
-    # Add 5 seconds of silence (duration of the intro) and encode it to vorbis
-
-    AUDIO=$dir/audio.wav
-    OGG=$dir/audio.ogg
-    SILENCE=$dir/silence.wav
-
-    ffmpeg -acodec pcm_s16le -f s16le -i /dev/zero -ar $AUDIO_RATE -ac 2 -t $INTRO_DURATION $SILENCE
-    sox $SILENCE $MAIN_AUDIO $AUDIO 
-    oggenc -q 5 -o $OGG $AUDIO 
+    avconv -y \
+	-f image2 -loop 1 -i $COVER -r 25 -f webm -vcodec libvpx -t $INTRO_DURATION \
+	-ar 48000 -acodec pcm_s16le -f s16le -ac 2 -i /dev/zero -strict experimental -acodec vorbis -t $INTRO_DURATION \
+	-map 0:0 -map 1:0 $INTRO
+    if [ $? -ne 0 ] ; then exit 1 ; fi
 
     # Merge all the components (no reencoding needed)
 
+    echo "Merge high-res video"
     TMP=$dir/output.webm
-    mkvmerge --title "$SPEAKER - $TITLE" -o $TMP $INTRO_HD +${VIDEO_HD} $OGG
+    LANG=C mkvmerge --title "$SPEAKER - $TITLE" -o $TMP $INTRO_HD +${VIDEO_HD}
+    if [ $? -ne 0 ] ; then exit 1 ; fi
     mv -f $TMP $OUTPUT_HD
-    mkvmerge --title "$SPEAKER - $TITLE" -o $TMP $INTRO +${VIDEO} $OGG
+
+    echo "Merge low-res video"
+    LANG=C mkvmerge --title "$SPEAKER - $TITLE" -o $TMP $INTRO +${VIDEO}
+    if [ $? -ne 0 ] ; then exit 1 ; fi
     mv -f $TMP $OUTPUT
 
     # Clean
@@ -150,9 +155,9 @@ cat conf-list.txt | grep -v "^#" | while read talk ; do
     TITLE=$(echo $talk | cut -f4 -d'|')
     FILENAME=$(echo $talk | cut -f5 -d'|')
 
-    if [ "$EVENT" = "elce-2011" ] ; then
+    if [ "$EVENT" = "elce-2012" ] ; then
 	COVER_TEMPLATE=video-cover-elce.svg
-	PREFIX=elce-2011
+	PREFIX=elce-2012
     else
         echo "Unknown event $EVENT, abording"
 	exit 1
