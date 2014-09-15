@@ -56,6 +56,11 @@ gen_html () {
         echo -n "<a href=\"$SLIDES\">Slides</a><br/>"
     fi
 
+    if [ "$AUDIO" != "" ]
+    then
+        echo -n "<a href=\"$AUDIO\">Audio Recording</a><br/>"
+    fi
+
     if [ -f "$VIDEO" ]
     then
         echo -n "Video ($MINUTES minutes):<br/>"
@@ -79,6 +84,7 @@ cat conf-list.txt | grep -v "^#" | while read talk ; do
     FILENAME=$(echo $talk | cut -f5 -d'|')
     LINK=$(echo $talk | cut -f6 -d'|')
     SLIDES=$(echo $talk | cut -f7 -d'|')
+    AUDIO=$(echo $talk | cut -f8 -d'|')
 
     PREFIX=$EVENT_YEAR
     WWWDIR=/pub/video/$YEAR/$EVENT
