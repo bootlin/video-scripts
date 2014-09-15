@@ -4,7 +4,6 @@
 # See the COPYING file for details
 
 gen_html () {
-    VIDEOPATH=/media/40999800-8cfe-4211-8192-8d13686927c3/elce2012/webm
     LDVIDEOWIDTH=800
     LDVIDEOHEIGHT=450
     VIDEOFILE=$PREFIX-$FILENAME.webm
@@ -72,6 +71,7 @@ gen_html () {
 }
 
 CAPS=vidcaps
+VIDEOPATH=$1
 mkdir -p $CAPS
 
 cat conf-list.txt | grep -v "^#" | while read talk ; do
