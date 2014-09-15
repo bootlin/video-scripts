@@ -71,7 +71,9 @@ CAPS=vidcaps
 mkdir -p $CAPS
 
 cat conf-list.txt | grep -v "^#" | while read talk ; do
-    EVENT=$(echo $talk | cut -f1 -d'|')
+    EVENT_YEAR=$(echo $talk | cut -f1 -d'|')
+    EVENT=$(echo $EVENT_YEAR | cut -f1 -d'-')
+    YEAR=$(echo $EVENT_YEAR | cut -f2 -d'-')
     SPEAKER=$(echo $talk | cut -f2 -d'|')
     COMPANY=$(echo $talk | cut -f3 -d'|')
     TITLE=$(echo $talk | cut -f4 -d'|')
@@ -79,13 +81,8 @@ cat conf-list.txt | grep -v "^#" | while read talk ; do
     LINK=$(echo $talk | cut -f6 -d'|')
     SLIDES=$(echo $talk | cut -f7 -d'|')
 
-    if [ "$EVENT" == "elce-2012" ] ; then
-	PREFIX=elce-2012
-	WWWDIR=/pub/video/2012/elce
-    else
-        echo "Unknown event $EVENT, abording"
-	exit 1
-    fi
+    PREFIX=$EVENT_YEAR
+    WWWDIR=/pub/video/$YEAR/$EVENT
 
     gen_html < /dev/null
 done
