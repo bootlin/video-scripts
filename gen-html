@@ -13,58 +13,57 @@ gen_html () {
     VIDEOCAPTHUMB=$CAPS/$PREFIX-$FILENAME-thumb.jpg
     VIDEO=$VIDEOPATH/$VIDEOFILE
     LDVIDEO=$VIDEOPATH/$LDVIDEOFILE
-    DURATION=`LANG=C mkvinfo $VIDEO | grep Duration | cut -f4 -d' ' | cut -f1 -ds`
-    MINUTES=`echo $DURATION/60 | bc`
-    SIZE=`ls -lh $VIDEO | awk '{ print $5 }'`
-    LDSIZE=`ls -lh $LDVIDEO | awk '{ print $5 }'`
 
-    # Capturing a frame at instant 300 (5 minutes)
-    # Usually, the speaker is ready and still talking
+    echo -n "<b>$SPEAKER</b>"
 
-    ffmpeg -vframes 1 -ss 300 -i $VIDEO output%d.jpg
-    if ! -f output1.jpg ; then
-	ffmpeg -vframes 1 -ss 100 -i $VIDEO output%d.jpg ;
+    if [ "$FILENAME" != "" ]
+    then
+	DURATION=`LANG=C mkvinfo $VIDEO | grep Duration | cut -f4 -d' ' | cut -f1 -ds`
+	MINUTES=`echo $DURATION/60 | bc`
+	SIZE=`ls -lh $VIDEO | awk '{ print $5 }'`
+	LDSIZE=`ls -lh $LDVIDEO | awk '{ print $5 }'`
+
+       # Capturing a frame at instant 300 (5 minutes)
+       # Usually, the speaker is ready and still talking
+
+       avconv -ss 300 -i $VIDEO -vframes 1 output%d.jpg
+       if ! -f output1.jpg ; then
+           avconv -ss 100 -i $VIDEO -vframes 1 output%d.jpg ;
+       fi
+       mv output1.jpg $VIDEOCAP
+       convert $VIDEOCAP -resize 200 $VIDEOCAPTHUMB
+
+       echo -n "<a href=\"$WWWDIR/$VIDEOCAP\"><img class=\"alignright\" src=\"$WWWDIR/$VIDEOCAPTHUMB\" alt=\"Video capture\"/></a>"
     fi
-    mv output1.jpg $VIDEOCAP 
-    convert $VIDEOCAP -resize 200 $VIDEOCAPTHUMB 
+    echo -n "<br/>"
 
     # Generating html
 
-    missing_lines=0
-
-    echo -n "<b>$SPEAKER</b>"
-    echo -n "<a href=\"$WWWDIR/$VIDEOCAP\"><img class=\"alignright\" src=\"$WWWDIR/$VIDEOCAPTHUMB\" alt=\"Video capture\"/></a>"
-
     if [ "$COMPANY" != "" ]
     then
-	echo -n "<br/>$COMPANY"
-    else
-	missing_lines=`expr $missing_lines + 1` 
+        echo -n "$COMPANY<br/>"
     fi
 
     if [ "$LINK" != "" ]
     then
-        echo -n "<br/><a href=\"$LINK\">$TITLE</a>"
+        echo -n "<a href=\"$LINK\">$TITLE</a><br/>"
     else
-        echo -n "<br/>$TITLE"
-	missing_lines=`expr $missing_lines + 1` 
+        echo -n "$TITLE<br/>"
     fi
 
     if [ "$SLIDES" != "" ]
     then
-        echo -n "<br/><a href=\"$SLIDES\">Slides</a>"
-    else
-	missing_lines=`expr $missing_lines + 1` 
+        echo -n "<a href=\"$SLIDES\">Slides</a><br/>"
     fi
 
-    echo -n "<br/>Video ($MINUTES minutes):<br/>"
-    echo -n "<a href=\"$WWWDIR/$VIDEOFILE\">full HD</a> ($SIZE), "
-    echo "<a href=\"$WWWDIR/$LDVIDEOFILE\">${LDVIDEOWIDTH}x${LDVIDEOHEIGHT}</a> ($LDSIZE)<br/><br/>"
+    if [ -f "$VIDEO" ]
+    then
+        echo -n "Video ($MINUTES minutes):<br/>"
+        echo -n "<a href=\"$WWWDIR/$VIDEOFILE\">full HD</a> ($SIZE), "
+        echo -n "<a href=\"$WWWDIR/$LDVIDEOFILE\">${LDVIDEOWIDTH}x${LDVIDEOHEIGHT}</a> ($LDSIZE)<br/>"
+    fi
 
-    for i in `seq 1 1 $missing_lines`
-    do
-	echo -n "<br/>"
-    done
+    echo "<br/>"
 }
 
 CAPS=vidcaps
