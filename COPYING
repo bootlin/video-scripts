@@ -1,7 +1,7 @@
-# Copyright Free Electrons (C) 2005-2011 Free Electrons
-# Authors: Michael Opdenacker <michael dot opdenacker free-electrons com>
-# 	   Thomas Petazzoni <thomas dot petazzoni free-electrons com>
-# Home page: http://git.free-electrons.com/video-scripts/ 
+# Copyright (C) 2005-2011 Bootlin
+# Authors: Michael Opdenacker <michael dot opdenacker bootlin com>
+# 	   Thomas Petazzoni <thomas dot petazzoni bootlin com>
+# Home page: http://git.bootlin.com/video-scripts/ 
 # 
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the

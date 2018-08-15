@@ -1,12 +1,15 @@
-Free Electrons video processing scripts
----------------------------------------
+Bootlin video processing scripts
+--------------------------------
 
 Scripts released under the GNU General Public License V2 license
 See the LICENSE file for details
 
-This script can be used to encode AVCHD files to the free VP8 codec.
-It also adds an introductory sequence showing the video title and 
-other useful information.
+VP8 encoder
+-----------
+
+The gen-videos-vp8 script can be used to encode AVCHD files to
+the free VP8 codec. It also adds an introductory sequence showing
+the video title and other useful information.
 
 It is not meant to be very generic. Instead, it can be used as
 a starting base (that works!) which you would customize according to
@@ -32,3 +35,13 @@ How to use:
 
 - Run the gen-html script to generate a web page with links to the
   videos. 
+
+Older stuff
+-----------
+
+- gen-videos-theora:
+  Our old script that encoded AVCHD videos into Ogg/Theora
+  Ogg/Theora is also a free codec, but VP8 now gives better results.
+
+- theora-intro:
+  Adds an introduction video (title) to an Ogg/Theora video.

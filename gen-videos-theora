@@ -66,6 +66,6 @@ cat conf-list.txt | grep -v "^#" | while read talk ; do
     fi
 
     # Add an intro to the video
-    ./theora-intro -v --organization "Free Electrons" --title "$SPEAKER ($COMPANY) - $TITLE" --date "April 2010" --location "San Francisco, USA" --copyright "Free Electrons" --license "Creative Commons BY-SA 3.0" --contact "feedback@free-electrons.com"  $VIDEO_BODY $COVER $VIDEO_FULL
+    ./theora-intro -v --organization "Bootlin" --title "$SPEAKER ($COMPANY) - $TITLE" --date "April 2010" --location "San Francisco, USA" --copyright "Bootlin" --license "Creative Commons BY-SA 3.0" --contact "feedback@bootlin.com"  $VIDEO_BODY $COVER $VIDEO_FULL
 
 done

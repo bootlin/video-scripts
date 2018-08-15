@@ -5,8 +5,8 @@
 # Usage: theora-intro <options> <video> <image> <output-video>
 #
 # Version 0.9
-# Copyright (C) 2009 Free Electrons
-# Author: Michael Opdenacker <michael@free-electrons.com>
+# Copyright (C) 2009 Bootlin
+# Author: Michael Opdenacker <michael@bootlin.com>
 #
 # Huge thanks to Yoern Seger <yorn@gmx.net> for his useful tools
 # and for investigating the issues I faced.
